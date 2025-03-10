@@ -1,0 +1,17 @@
+{
+  "name": "com.vadimagamov.figmaimporter",
+  "displayName": "Figma Importer",
+  "version": "1.0.0",
+  "unity": "2021.3",
+  "description": "Figma Importer is a Unity package that allows you to import Figma designs into Unity.",
+  "author": {
+    "name": "Vadim Agamov",
+    "email": "vadim.agamov@gmail.com"
+  },
+  "dependencies": {
+    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.5.10",
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  },
+  "keywords": ["png", "sprite", "importer", "figma"],
+  "license": "MIT"
+}
