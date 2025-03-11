@@ -25,13 +25,15 @@ namespace FigmaImporter.Editor
         [SerializeField]
         private FigmaNodeConfig[] _figmaNodeConfig;
 
+        private ProgressWindow _progressWindow;
+
         public FigmaNodeConfig[] Nodes => _figmaNodeConfig;
 
         private const string TEXTURE_FORMAT = "png";
-        private const int BATCH_SIZE = 20;
         private const int MAX_TEXTURE_SIZE = 1024;
-
         private static CancellationTokenSource _cancellationTokenSource;
+        private const int MAX_CONCURRENT_TEXTURE_DOWNLOADS = 5;
+        private int _concurrentTextureDownloads = 0;
 
         private void OnValidate()
         {
@@ -45,7 +47,6 @@ namespace FigmaImporter.Editor
         {
             _cancellationTokenSource?.Cancel();
             _cancellationTokenSource = null;
-            EditorUtility.ClearProgressBar();
         }
 
         public async UniTaskVoid Import()
@@ -69,9 +70,9 @@ namespace FigmaImporter.Editor
         public async UniTaskVoid ImportNode(FigmaNodeConfig figmaNodeConfig)
         {
             Cancel();
-            
+
             await Do(figmaNodeConfig);
-            
+
             Debug.Log($"---- Re-Import directory {figmaNodeConfig.UnityExportPath}");
             AssetDatabase.ImportAsset(figmaNodeConfig.UnityExportPath,
                 ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ImportRecursive);
@@ -79,6 +80,8 @@ namespace FigmaImporter.Editor
 
         private async UniTask Do(FigmaNodeConfig figmaNodeConfig)
         {
+            _progressWindow = ProgressWindow.ShowWindow(figmaNodeConfig.UnityExportPath, Cancel);
+
             _cancellationTokenSource = new CancellationTokenSource();
             Debug.Log($"---- Begin {figmaNodeConfig.NodeToken}, {figmaNodeConfig.UnityExportPath}");
             var importedAssets = new List<string>();
@@ -97,35 +100,26 @@ namespace FigmaImporter.Editor
                     .GetFiles(figmaNodeConfig.UnityExportPath, $"*.{TEXTURE_FORMAT}", SearchOption.AllDirectories)
                     .ToList();
 
-                EditorUtility.DisplayProgressBar("Downloading nodes", $"{figmaNodeConfig.UnityExportPath}", 0);
+                _progressWindow.SetStatus("Downloading project..");
+                _progressWindow.ReportTotalProgress(0);
+                _progressWindow.ReportCurrentProgress(0);
+                
                 var nodeObject = await DownloadNode(figmaNodeConfig.NodeToken);
-                Debug.Log($"---- Downloaded node  {figmaNodeConfig.NodeToken}, {figmaNodeConfig.UnityExportPath}");
 
                 var documentNode = nodeObject["nodes"].Children<JProperty>().Select(p => p.Value["document"]).First();
 
                 var batches = documentNode
                     .ToObject<FigmaDocument>()
                     .Map(ExtractNodeIds)
-                    .SplitIntoBatches(BATCH_SIZE)
+                    .SplitIntoBatches(figmaNodeConfig.BatchSize)
                     .ToList();
-
-                EditorUtility.DisplayProgressBar(
-                    "Downloading..",
-                    $"{figmaNodeConfig.UnityExportPath}, batch {0}/{batches.Count}",
-                    0);
 
                 for (var index = 0; index < batches.Count; index++)
                 {
-                    EditorUtility.DisplayProgressBar(
-                        "Downloading..",
-                        $"{figmaNodeConfig.UnityExportPath}, batch {index}/{batches.Count}",
-                        index / (float)batches.Count);
-
                     var batch = batches[index];
-                    Debug.Log($"---- Processing batch {figmaNodeConfig.NodeToken} {index}");
                     var savedTextures = await ProcessNodes(batch, figmaNodeConfig);
-                    Debug.Log($"----Processing batch done {figmaNodeConfig.NodeToken} {index}, {string.Join(", ", savedTextures)}");
                     importedAssets.AddRange(savedTextures);
+                    _progressWindow.ReportTotalProgress((index+1) / (float)batches.Count);
                 }
 
                 Debug.Log($"importedAssets: {string.Join(", ", importedAssets)}");
@@ -141,10 +135,12 @@ namespace FigmaImporter.Editor
             {
                 AssetDatabase.StopAssetEditing();
                 AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
-                EditorUtility.ClearProgressBar();
-                _cancellationTokenSource.Dispose();
+                _cancellationTokenSource?.Dispose();
                 _cancellationTokenSource = null;
                 Debug.Log($"---- Downloaded all images {figmaNodeConfig.NodeToken}, {figmaNodeConfig.UnityExportPath}");
+
+                _progressWindow.HideWindow();
+                _progressWindow = null;
             }
 
             Debug.Log($"---- Setup import settings {figmaNodeConfig.NodeToken}, {figmaNodeConfig.UnityExportPath}");
@@ -175,14 +171,12 @@ namespace FigmaImporter.Editor
                 {
                     continue;
                 }
-
-                var progress = index / (float)importedAssets.Count;
-                EditorUtility.DisplayProgressBar($"Setup import settings", $"{(int)(100 * progress)}% {importedAssetPath}", progress);
+                
                 Debug.Log($"---- Setup import settings {importedAssetPath}");
 
                 importer.textureType = TextureImporterType.Sprite;
                 importer.spriteImportMode = SpriteImportMode.Single;
-                importer.maxTextureSize = 1024;
+                importer.maxTextureSize = MAX_TEXTURE_SIZE;
                 importer.isReadable = figmaNodeConfig.IsReadable;
                 importer.textureCompression = TextureImporterCompression.Uncompressed;
 
@@ -234,9 +228,16 @@ namespace FigmaImporter.Editor
         private async UniTask<IEnumerable<(string NodeUrl, string NodeName)>> FetchNodesUrls(IEnumerable<(string NodeId, string NodeName)> batch)
         {
             var commaSeparatedVisibleNodeIds = string.Join(',', batch.Select(x => x.NodeId));
+            _progressWindow.SetStatus($"Requesting {batch.Count()} nodes");
+            _progressWindow.ReportCurrentProgress(0);
             var response = await FetchUrl($"https://api.figma.com/v1/images/{_figmaProjectId}?ids={commaSeparatedVisibleNodeIds}&format={TEXTURE_FORMAT}");
             var figmaImages = response.ToObject<FigmaImages>();
-            return batch.Select(node => (NodeUrl: figmaImages.Images[node.NodeId], NodeName: node.NodeName));
+            return batch.Select(node =>
+                (
+                    NodeUrl: figmaImages.Images[node.NodeId],
+                    NodeName: node.NodeName
+                )
+            );
         }
 
         private async UniTask<IEnumerable<(string NodeName, Texture2D Texture)>> DownloadTextures(UniTask<IEnumerable<(string NodeUrl, string NodeName)>> nodes)
@@ -247,26 +248,39 @@ namespace FigmaImporter.Editor
                 tasks.Add(DownloadTexture(nodeName, nodeUrl));
             }
 
-            return await UniTask.WhenAll(tasks);
+            _progressWindow.SetStatus("Downloading textures..");
+            _progressWindow.ReportCurrentProgress(0);
+            return await tasks.WhenAll(_progressWindow.CurrentProgressReporter());
         }
-
+        
         private async UniTask<(string NodeName, Texture2D Texture)> DownloadTexture(string nodeName, string nodeUrl)
         {
             using var request = UnityWebRequestTexture.GetTexture(nodeUrl);
-            await request.SendWebRequest().ToUniTask(cancellationToken: _cancellationTokenSource.Token);
+            
+            await UniTask.WaitWhile(() => _concurrentTextureDownloads >= MAX_CONCURRENT_TEXTURE_DOWNLOADS);
+
+            try
+            {
+                _concurrentTextureDownloads++;
+                await request.SendWebRequest().ToUniTask(cancellationToken: _cancellationTokenSource.Token).SuppressCancellationThrow();
+            }
+            finally
+            {
+                _concurrentTextureDownloads--;
+            }
+            
             if (request.result == UnityWebRequest.Result.Success)
             {
                 Debug.Log($"---- Downloaded image: {nodeUrl} {nodeName}");
                 return (NodeName: nodeName, Texture: DownloadHandlerTexture.GetContent(request));
             }
-
             throw new Exception($"Error downloading image: {nodeUrl} {nodeName} {request.error}");
         }
 
         private static string SaveTexture(string nodeName, Texture2D texture, FigmaNodeConfig config) =>
-            Save(Path.Combine(config.UnityExportPath, nodeName), 
+            Save(Path.Combine(config.UnityExportPath, nodeName),
                 TEXTURE_FORMAT,
-                config.ExpandToPot, 
+                config.ExpandToPot,
                 config.Padding,
                 config.AutoCrop,
                 texture.EncodeToPNG());
