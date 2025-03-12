@@ -14,7 +14,7 @@ namespace FigmaImporter.Editor
         private Action _onCancel;
         private static readonly Vector2 WindowSize = new Vector2(300, 150);
 
-        public static ProgressWindow ShowWindow( string title, Action onCancel)
+        public static ProgressWindow ShowWindow(string title, Action onCancel)
         {
             var window = CreateInstance<ProgressWindow>();
             CenterWindow(window);
@@ -32,11 +32,7 @@ namespace FigmaImporter.Editor
             window.position = new Rect(x, y, WindowSize.x, WindowSize.y);
         }
 
-        public void HideWindow()
-        {
-            Debug.Log("---- HideWindow");
-            Close();
-        }
+        public void HideWindow() => Close();
 
         public void SetStatus(string status)
         {
@@ -57,18 +53,15 @@ namespace FigmaImporter.Editor
             Repaint();
         }
         
-        public IProgress<float> TotalReporter() => new Progress<float>(ReportTotalProgress);
-        public IProgress<float> CurrentProgressReporter() => new Progress<float>(ReportCurrentProgress);
-
         private void OnGUI()
         {
             GUILayout.Label(_title, EditorStyles.boldLabel);
 
             GUILayout.Label(_statusText, EditorStyles.wordWrappedLabel);
             
-            EditorGUI.ProgressBar(new Rect(10, 50, position.width - 20, 20), _totalProgress, $"Batches {_totalProgress * 100:F1}%");
+            EditorGUI.ProgressBar(new Rect(10, 50, position.width - 20, 20), _totalProgress, $"Batches {_totalProgress * 100:F0}%");
 
-            EditorGUI.ProgressBar(new Rect(10, 80, position.width - 20, 20), _currentProgress, $"Textures {_currentProgress * 100:F1}%");
+            EditorGUI.ProgressBar(new Rect(10, 80, position.width - 20, 20), _currentProgress, $"Images {_currentProgress * 100:F0}%");
             
             if (GUI.Button(new Rect(10, 120, position.width - 20, 20),"Cancel"))
             {

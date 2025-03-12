@@ -155,9 +155,12 @@ namespace FigmaImporter.Editor
                 .Map(DownloadTextures) // Download textures for the nodes
                 .Map(textures => SaveTextures(textures, exportConfig)); // Save textures and return paths
 
-        private async UniTask<IReadOnlyList<string>> SaveTextures(UniTask<IEnumerable<(string NodeName, Texture2D Texture)>> nodes,
-            FigmaNodeConfig exportConfig) =>
-            (await nodes).Select(x => SaveTexture(x.NodeName, x.Texture, exportConfig)).ToList();
+        private async UniTask<IReadOnlyList<string>> SaveTextures(UniTask<IEnumerable<(string NodeName, Texture2D Texture)>> nodes, FigmaNodeConfig exportConfig)
+        {
+            var textures = await nodes;
+            _progressWindow.SetStatus("Saving images..");
+            return textures.Select(x => SaveTexture(x.NodeName, x.Texture, exportConfig)).ToList();
+        }
 
         private static void SetupImportSettings(FigmaNodeConfig figmaNodeConfig, List<string> importedAssets)
         {
@@ -228,7 +231,7 @@ namespace FigmaImporter.Editor
         private async UniTask<IEnumerable<(string NodeUrl, string NodeName)>> FetchNodesUrls(IEnumerable<(string NodeId, string NodeName)> batch)
         {
             var commaSeparatedVisibleNodeIds = string.Join(',', batch.Select(x => x.NodeId));
-            _progressWindow.SetStatus($"Requesting {batch.Count()} nodes");
+            _progressWindow.SetStatus($"Requesting {batch.Count()} images..");
             _progressWindow.ReportCurrentProgress(0);
             var response = await FetchUrl($"https://api.figma.com/v1/images/{_figmaProjectId}?ids={commaSeparatedVisibleNodeIds}&format={TEXTURE_FORMAT}");
             var figmaImages = response.ToObject<FigmaImages>();
@@ -248,9 +251,9 @@ namespace FigmaImporter.Editor
                 tasks.Add(DownloadTexture(nodeName, nodeUrl));
             }
 
-            _progressWindow.SetStatus("Downloading textures..");
+            _progressWindow.SetStatus("Downloading images..");
             _progressWindow.ReportCurrentProgress(0);
-            return await tasks.WhenAll(_progressWindow.CurrentProgressReporter());
+            return await tasks.WhenAll(new Progress<float>(_progressWindow.ReportCurrentProgress));
         }
         
         private async UniTask<(string NodeName, Texture2D Texture)> DownloadTexture(string nodeName, string nodeUrl)
@@ -271,6 +274,7 @@ namespace FigmaImporter.Editor
             
             if (request.result == UnityWebRequest.Result.Success)
             {
+                _progressWindow.SetStatus($"Downloaded {nodeName}");
                 Debug.Log($"---- Downloaded image: {nodeUrl} {nodeName}");
                 return (NodeName: nodeName, Texture: DownloadHandlerTexture.GetContent(request));
             }
