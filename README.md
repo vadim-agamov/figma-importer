@@ -5,7 +5,8 @@ Simple tool for importing images from Figma to Unity. Download images from given
 Add git package https://github.com/vadim-agamov/figma-importer.git to Package Manager
 ## Configuration
 ### Figma API token
-Add [personal access token](https://help.figma.com/hc/en-us/articles/8085703771159-Manage-personal-access-tokens): Create -> FigmaImporter -> Token
+Add [personal access token](https://help.figma.com/hc/en-us/articles/8085703771159-Manage-personal-access-tokens): Create -> FigmaImporter -> Token.  
+___Do not forget to exclude token from public repository___
 ### Import settings
 Create config with import settings.  Create -> FigmaImporter -> Node Importer
 - *Figma Project Id* - id of the Figma project
