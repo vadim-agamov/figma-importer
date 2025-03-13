@@ -292,7 +292,7 @@ namespace FigmaImporter.Editor
         private IReadOnlyList<(string NodeId, string NodeName)> ExtractNodeIds(FigmaDocument figmaDocument) =>
             figmaDocument.Children
                 .SelectMany(node => node.Type == "COMPONENT_SET"
-                    ? node.Children.Select(child => (NodeId: child.Id, NodeName: child.Name))
+                    ? node.Children.Select(child => (NodeId: child.Id, NodeName: Path.Combine(node.Name, child.Name.Split('=').Skip(1).First())))
                     : new[] { (NodeId: node.Id, NodeName: node.Name) })
                 .ToList();
 
