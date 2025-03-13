@@ -4,6 +4,33 @@ namespace FigmaImporter.Editor
 {
     public static class TextureUtils
     {
+        // Resize the texture while centering the original image
+        public static byte[] Resize(byte[] bytes, Vector2Int newSize)
+        {
+            var originalTexture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            originalTexture.LoadImage(bytes);
+
+            var resizedTexture = new Texture2D(newSize.x, newSize.y, TextureFormat.RGBA32, false);
+
+            // Fill the new texture with transparent black
+            var fillColors = new Color[newSize.x * newSize.y];
+            for (var i = 0; i < fillColors.Length; i++)
+            {
+                fillColors[i] = new Color(0, 0, 0, 0); // Transparent black
+            }
+
+            resizedTexture.SetPixels(fillColors);
+
+            // Center the original texture
+            var offsetX = (newSize.x - originalTexture.width) / 2;
+            var offsetY = (newSize.y - originalTexture.height) / 2;
+            resizedTexture.SetPixels(offsetX, offsetY, originalTexture.width, originalTexture.height, originalTexture.GetPixels());
+
+            resizedTexture.Apply();
+
+            return resizedTexture.EncodeToPNG();
+        }       
+        
         // Expand the texture by adding padding around it
         public static byte[] Expand(byte[] bytes, int padding)
         {

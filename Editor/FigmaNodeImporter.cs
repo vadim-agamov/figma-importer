@@ -6,6 +6,7 @@ using System.Threading;
 using Cysharp.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Unity.Android.Gradle.Manifest;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -282,12 +283,7 @@ namespace FigmaImporter.Editor
         }
 
         private static string SaveTexture(string nodeName, Texture2D texture, FigmaNodeConfig config) =>
-            Save(Path.Combine(config.UnityExportPath, nodeName),
-                TEXTURE_FORMAT,
-                config.ExpandToPot,
-                config.Padding,
-                config.AutoCrop,
-                texture.EncodeToPNG());
+            Save(Path.Combine(config.UnityExportPath, nodeName), TEXTURE_FORMAT, config, texture.EncodeToPNG());
 
         private IReadOnlyList<(string NodeId, string NodeName)> ExtractNodeIds(FigmaDocument figmaDocument) =>
             figmaDocument.Children
@@ -296,7 +292,7 @@ namespace FigmaImporter.Editor
                     : new[] { (NodeId: node.Id, NodeName: node.Name) })
                 .ToList();
 
-        private static string Save(string fullPath, string extension, bool extendToPot, int padding, bool autoCrop, byte[] bytes)
+        private static string Save(string fullPath, string extension, FigmaNodeConfig config, byte[] bytes)
         {
             var directory = Path.GetDirectoryName(fullPath);
             if (directory != null && !Directory.Exists(directory))
@@ -304,16 +300,12 @@ namespace FigmaImporter.Editor
                 Directory.CreateDirectory(directory);
             }
 
-            var data = (extendToPot, padding, autoCrop) switch
-            {
-                (true, _, false) => ExpandToPot(bytes),
-                (true, _, true) => bytes.Map(AutoCrop).Map(ExpandToPot),
-                (false, > 0, false) => Expand(bytes, padding),
-                (false, > 0, true) => bytes.Map(AutoCrop).Map(x => Expand(x, padding)),
-                (false, 0, true) => AutoCrop(bytes),
-                _ => bytes
-            };
-
+            var data = bytes
+                .MapIf(AutoCrop, config.AutoCrop)
+                .MapIf(d => Expand(d, config.Padding), config.Padding > 0)
+                .MapIf(d => Resize(d, config.Size), config.Size.x > 0 && config.Size.y > 0)
+                .MapIf(ExpandToPot, config.ExpandToPot);
+            
             var fullPathWithExtension = $"{fullPath}.{extension}";
             File.WriteAllBytes(fullPathWithExtension, data);
             Debug.Log($"---- Saved {fullPathWithExtension}");

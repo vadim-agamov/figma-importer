@@ -10,22 +10,28 @@ namespace FigmaImporter.Editor
     {
         [SerializeField]
         private string _unityExportPath;
-        
+     
+        [Header("Figma Node Settings")]
         [SerializeField]
         private string _nodeToken;
         
         [SerializeField]
         private BatchSizeEnum _batchSize = BatchSizeEnum.Batch_10;
         
+        [Header("Post Processing")]
         [SerializeField]
-        private bool _expandToPot;
+        private bool _autoCrop;
         
         [SerializeField]
         private int _padding;
         
         [SerializeField]
-        private bool _autoCrop;
+        private Vector2Int _resizeTo = Vector2Int.zero;
         
+        [SerializeField]
+        private bool _expandToPot;
+        
+        [Header("Texture Importer Settings")]
         [SerializeField]
         private TextureImporterFormat _iosTextureImporterFormat = TextureImporterFormat.Automatic;
         
@@ -44,8 +50,8 @@ namespace FigmaImporter.Editor
         public bool IsReadable => _isReadable;
         public int Padding => _padding;
         public bool AutoCrop => _autoCrop;
-        
         public int BatchSize => (int)_batchSize;
+        public Vector2Int Size => _resizeTo;
         
         private enum BatchSizeEnum
         {

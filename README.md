@@ -17,6 +17,7 @@ Create config with import settings.  Create -> FigmaImporter -> Node Importer
 - *Expand to Pot* - increase image size to nearest power of two
 - *Padding* - amount of pixels to add around the image
 - *Auto crop* - crop image to the non-transparent content area
+- *ResizeTo* - set image size to the specified value and copy image to the center
 - *Ios Texture Importer*,*Android Texture Importer* - texture import format
 ## Usage
 Locate config in inspector and press "Download" / "Download All" button
