@@ -1,4 +1,4 @@
-# Figma importer
+# Figma to Unity importer
 Simple tool for importing images from Figma to Unity. Download images from given Figma file and save them to the specified folder.
 ![figma-importer](figma_importer.png)
 ## Install
