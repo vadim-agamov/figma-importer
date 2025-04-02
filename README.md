@@ -14,10 +14,11 @@ Create config with import settings.  Create -> FigmaImporter -> Node Importer
 - *Unity Export Path* - path to the folder where images will be saved in Unity project starting from Assets folder: _Assets/.._
 - *Node Token* - token of the node that holds images you want to import
 - *Batch size* - number of images to download in one request. Figma API could return error in case you request of too many images at once
+- *Ios Texture Importer*,*Android Texture Importer* - texture import format
+### Post Processing
 - *Expand to Pot* - increase image size to nearest power of two
 - *Padding* - amount of pixels to add around the image
 - *Auto crop* - crop image to the non-transparent content area
 - *ResizeTo* - set image size to the specified value and copy image to the center
-- *Ios Texture Importer*,*Android Texture Importer* - texture import format
 ## Usage
 Locate config in inspector and press "Download" / "Download All" button
